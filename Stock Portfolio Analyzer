@@ -1,0 +1,766 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Stock Portfolio Analyzer with AI Insights\n",
+    "\n",
+    "This notebook analyzes a sample stock portfolio using Python and real market data from Yahoo Finance. It calculates returns, risk, volatility, allocation, correlation, Sharpe ratio, and portfolio-level takeaways.\n",
+    "\n",
+    "**Example portfolio:** AAPL, MSFT, NVDA, JPM, XOM  \n",
+    "**Starting investment:** $10,000\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1. Project Overview\n",
+    "\n",
+    "The goal of this project is to evaluate how a stock portfolio performed historically and explain the results in simple business language. The notebook uses market data, calculates key investment metrics, and creates charts that make the portfolio easier to understand.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 2. Real-World Finance Use Case\n",
+    "\n",
+    "A financial analyst can use this type of workflow to review a portfolio, compare risk across holdings, identify the strongest and weakest stocks, and summarize the results for investors or managers.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 3. Required Python Libraries\n",
+    "\n",
+    "This project uses:\n",
+    "\n",
+    "- `yfinance` for stock price data\n",
+    "- `pandas` for data analysis\n",
+    "- `numpy` for calculations\n",
+    "- `matplotlib` and `plotly` for charts\n",
+    "- `seaborn` for the correlation heatmap\n",
+    "\n",
+    "Run the setup cell below first in Google Colab."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# Install yfinance in Google Colab\n",
+    "!pip install yfinance --quiet\n",
+    "\n",
+    "# Import required libraries\n",
+    "import yfinance as yf\n",
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import matplotlib.pyplot as plt\n",
+    "import seaborn as sns\n",
+    "import plotly.express as px\n",
+    "import plotly.graph_objects as go\n",
+    "\n",
+    "# Make charts look cleaner\n",
+    "plt.rcParams['figure.figsize'] = (12, 6)\n",
+    "plt.rcParams['axes.grid'] = True\n",
+    "\n",
+    "# Display settings\n",
+    "pd.set_option('display.float_format', lambda x: f'{x:,.4f}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 4. Google Colab Setup\n",
+    "\n",
+    "After opening this notebook in Google Colab:\n",
+    "\n",
+    "1. Run the install/import cell above.\n",
+    "2. Run the portfolio input cell below.\n",
+    "3. Run each section from top to bottom.\n",
+    "4. Change the tickers or investment amount to test your own portfolio.\n",
+    "\n",
+    "### Finance meaning\n",
+    "Colab lets you run Python in the cloud without installing software. This makes the project easy to share with recruiters, classmates, or internship interviewers."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 5. Portfolio Input Section\n",
+    "\n",
+    "Edit the tickers, investment amount, and date range here.\n",
+    "\n",
+    "Default portfolio:\n",
+    "\n",
+    "- Apple: AAPL\n",
+    "- Microsoft: MSFT\n",
+    "- Nvidia: NVDA\n",
+    "- JPMorgan Chase: JPM\n",
+    "- Exxon Mobil: XOM"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Portfolio Inputs\n",
+    "# -----------------------------\n",
+    "\n",
+    "# Example stock tickers\n",
+    "portfolio_tickers = ['AAPL', 'MSFT', 'NVDA', 'JPM', 'XOM']\n",
+    "\n",
+    "# Starting investment amount\n",
+    "starting_investment = 10000\n",
+    "\n",
+    "# Date range for historical analysis\n",
+    "start_date = '2020-01-01'\n",
+    "end_date = None  # None means latest available data\n",
+    "\n",
+    "# Equal-weight portfolio allocation\n",
+    "# Each stock receives the same percentage of the portfolio\n",
+    "weights = np.array([1 / len(portfolio_tickers)] * len(portfolio_tickers))\n",
+    "\n",
+    "portfolio_settings = pd.DataFrame({\n",
+    "    'Ticker': portfolio_tickers,\n",
+    "    'Weight': weights,\n",
+    "    'Investment Amount': weights * starting_investment\n",
+    "})\n",
+    "\n",
+    "portfolio_settings"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "An equal-weight portfolio means the money is split evenly across all selected stocks. With five stocks and $10,000, each stock receives $2,000."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 6. Stock Data Collection Using yfinance\n",
+    "\n",
+    "This section downloads historical stock prices from Yahoo Finance using the `yfinance` Python library."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Download Stock Price Data\n",
+    "# -----------------------------\n",
+    "\n",
+    "# Download adjusted close prices\n",
+    "raw_data = yf.download(\n",
+    "    portfolio_tickers,\n",
+    "    start=start_date,\n",
+    "    end=end_date,\n",
+    "    auto_adjust=True,\n",
+    "    progress=False\n",
+    ")\n",
+    "\n",
+    "# Select closing prices\n",
+    "if isinstance(raw_data.columns, pd.MultiIndex):\n",
+    "    price_data = raw_data['Close']\n",
+    "else:\n",
+    "    price_data = raw_data[['Close']]\n",
+    "\n",
+    "# Drop rows with missing values\n",
+    "price_data = price_data.dropna()\n",
+    "\n",
+    "# Show the first few rows\n",
+    "price_data.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "Stock prices change every trading day. Historical price data lets us measure past performance, risk, and portfolio behavior."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 7. Historical Returns Calculation\n",
+    "\n",
+    "Returns measure how much each stock gained or lost over time."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Calculate Daily Returns\n",
+    "# -----------------------------\n",
+    "\n",
+    "daily_returns = price_data.pct_change().dropna()\n",
+    "\n",
+    "# Annualized average return assumes about 252 trading days per year\n",
+    "annual_returns = daily_returns.mean() * 252\n",
+    "\n",
+    "returns_summary = pd.DataFrame({\n",
+    "    'Annualized Return': annual_returns,\n",
+    "    'Annualized Return (%)': annual_returns * 100\n",
+    "}).sort_values(by='Annualized Return', ascending=False)\n",
+    "\n",
+    "returns_summary"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "Daily return shows the percentage gain or loss from one trading day to the next. Annualized return converts average daily performance into an estimated yearly return."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 8. Risk and Volatility Analysis\n",
+    "\n",
+    "Volatility measures how much a stock moves up and down. Higher volatility usually means higher risk."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Calculate Volatility\n",
+    "# -----------------------------\n",
+    "\n",
+    "annual_volatility = daily_returns.std() * np.sqrt(252)\n",
+    "\n",
+    "risk_summary = pd.DataFrame({\n",
+    "    'Annualized Volatility': annual_volatility,\n",
+    "    'Annualized Volatility (%)': annual_volatility * 100\n",
+    "}).sort_values(by='Annualized Volatility', ascending=False)\n",
+    "\n",
+    "risk_summary"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Volatility Bar Chart\n",
+    "# -----------------------------\n",
+    "\n",
+    "fig = px.bar(\n",
+    "    risk_summary.reset_index(),\n",
+    "    x='Ticker' if 'Ticker' in risk_summary.reset_index().columns else risk_summary.reset_index().columns[0],\n",
+    "    y='Annualized Volatility (%)',\n",
+    "    title='Annualized Volatility by Stock',\n",
+    "    labels={'Annualized Volatility (%)': 'Volatility (%)'}\n",
+    ")\n",
+    "fig.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "A stock with high volatility can rise fast, but it can also fall fast. Risk is not automatically bad, but investors should know what they are taking on."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 9. Portfolio Allocation Breakdown\n",
+    "\n",
+    "This section shows how the $10,000 investment is split across the selected stocks."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Portfolio Allocation Table\n",
+    "# -----------------------------\n",
+    "\n",
+    "allocation_df = pd.DataFrame({\n",
+    "    'Ticker': portfolio_tickers,\n",
+    "    'Weight': weights,\n",
+    "    'Weight (%)': weights * 100,\n",
+    "    'Dollar Allocation': weights * starting_investment\n",
+    "})\n",
+    "\n",
+    "allocation_df"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Portfolio Allocation Pie Chart\n",
+    "# -----------------------------\n",
+    "\n",
+    "fig = px.pie(\n",
+    "    allocation_df,\n",
+    "    names='Ticker',\n",
+    "    values='Dollar Allocation',\n",
+    "    title='Portfolio Allocation Breakdown'\n",
+    ")\n",
+    "fig.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "Allocation shows where the money is placed. A portfolio concentrated in only one or two stocks may carry more company-specific risk."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 10. Correlation Heatmap\n",
+    "\n",
+    "Correlation shows how closely stocks move together.\n",
+    "\n",
+    "- A correlation near 1 means stocks move very similarly.\n",
+    "- A correlation near 0 means stocks do not move closely together.\n",
+    "- A negative correlation means they often move in opposite directions."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Correlation Matrix\n",
+    "# -----------------------------\n",
+    "\n",
+    "correlation_matrix = daily_returns.corr()\n",
+    "correlation_matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Correlation Heatmap\n",
+    "# -----------------------------\n",
+    "\n",
+    "plt.figure(figsize=(10, 6))\n",
+    "sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5)\n",
+    "plt.title('Stock Return Correlation Heatmap')\n",
+    "plt.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "Diversification works better when stocks do not all move the same way. If every stock is highly correlated, the portfolio may drop together during market stress."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 11. Cumulative Return Chart\n",
+    "\n",
+    "Cumulative return shows how much an investment would have grown over time."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Cumulative Returns\n",
+    "# -----------------------------\n",
+    "\n",
+    "cumulative_returns = (1 + daily_returns).cumprod()\n",
+    "\n",
+    "# Portfolio cumulative return using weights\n",
+    "portfolio_daily_returns = daily_returns.dot(weights)\n",
+    "portfolio_cumulative_returns = (1 + portfolio_daily_returns).cumprod()\n",
+    "\n",
+    "# Convert to dollar value\n",
+    "portfolio_value = starting_investment * portfolio_cumulative_returns\n",
+    "\n",
+    "cumulative_returns.tail()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Cumulative Return Chart\n",
+    "# -----------------------------\n",
+    "\n",
+    "fig = go.Figure()\n",
+    "\n",
+    "for ticker in portfolio_tickers:\n",
+    "    fig.add_trace(go.Scatter(\n",
+    "        x=cumulative_returns.index,\n",
+    "        y=cumulative_returns[ticker],\n",
+    "        mode='lines',\n",
+    "        name=ticker\n",
+    "    ))\n",
+    "\n",
+    "fig.add_trace(go.Scatter(\n",
+    "    x=portfolio_cumulative_returns.index,\n",
+    "    y=portfolio_cumulative_returns,\n",
+    "    mode='lines',\n",
+    "    name='Portfolio',\n",
+    "    line=dict(width=4)\n",
+    "))\n",
+    "\n",
+    "fig.update_layout(\n",
+    "    title='Cumulative Returns: Stocks vs Portfolio',\n",
+    "    xaxis_title='Date',\n",
+    "    yaxis_title='Growth of $1 Invested',\n",
+    "    hovermode='x unified'\n",
+    ")\n",
+    "\n",
+    "fig.show()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Portfolio Value Chart\n",
+    "# -----------------------------\n",
+    "\n",
+    "fig = px.line(\n",
+    "    x=portfolio_value.index,\n",
+    "    y=portfolio_value.values,\n",
+    "    title=f'Portfolio Value Over Time: ${starting_investment:,.0f} Initial Investment',\n",
+    "    labels={'x': 'Date', 'y': 'Portfolio Value ($)'}\n",
+    ")\n",
+    "fig.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "Cumulative return helps investors see the big picture. Instead of focusing on one day, it shows how wealth changed over the full time period."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 12. Sharpe Ratio Calculation\n",
+    "\n",
+    "The Sharpe ratio measures return compared to risk.\n",
+    "\n",
+    "A higher Sharpe ratio generally means better risk-adjusted performance."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Sharpe Ratio Calculation\n",
+    "# -----------------------------\n",
+    "\n",
+    "# Assumed annual risk-free rate\n",
+    "risk_free_rate = 0.04\n",
+    "\n",
+    "portfolio_annual_return = portfolio_daily_returns.mean() * 252\n",
+    "portfolio_annual_volatility = portfolio_daily_returns.std() * np.sqrt(252)\n",
+    "\n",
+    "portfolio_sharpe_ratio = (portfolio_annual_return - risk_free_rate) / portfolio_annual_volatility\n",
+    "\n",
+    "sharpe_summary = pd.DataFrame({\n",
+    "    'Metric': ['Portfolio Annual Return', 'Portfolio Annual Volatility', 'Risk-Free Rate', 'Sharpe Ratio'],\n",
+    "    'Value': [portfolio_annual_return, portfolio_annual_volatility, risk_free_rate, portfolio_sharpe_ratio]\n",
+    "})\n",
+    "\n",
+    "sharpe_summary"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "The Sharpe ratio asks: \u201cWas the return worth the risk?\u201d A portfolio can have high returns, but if risk is extremely high, the quality of those returns may be weaker."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 13. Best and Worst Performing Stocks\n",
+    "\n",
+    "This section ranks the stocks by total return over the selected time period."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Best and Worst Performing Stocks\n",
+    "# -----------------------------\n",
+    "\n",
+    "total_returns = (price_data.iloc[-1] / price_data.iloc[0]) - 1\n",
+    "\n",
+    "performance_summary = pd.DataFrame({\n",
+    "    'Total Return': total_returns,\n",
+    "    'Total Return (%)': total_returns * 100,\n",
+    "    'Starting Price': price_data.iloc[0],\n",
+    "    'Ending Price': price_data.iloc[-1]\n",
+    "}).sort_values(by='Total Return', ascending=False)\n",
+    "\n",
+    "best_stock = performance_summary.index[0]\n",
+    "worst_stock = performance_summary.index[-1]\n",
+    "\n",
+    "performance_summary"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Performance Bar Chart\n",
+    "# -----------------------------\n",
+    "\n",
+    "chart_df = performance_summary.reset_index()\n",
+    "first_col = chart_df.columns[0]\n",
+    "\n",
+    "fig = px.bar(\n",
+    "    chart_df,\n",
+    "    x=first_col,\n",
+    "    y='Total Return (%)',\n",
+    "    title='Total Return by Stock',\n",
+    "    labels={first_col: 'Ticker', 'Total Return (%)': 'Total Return (%)'}\n",
+    ")\n",
+    "fig.show()\n",
+    "\n",
+    "print(f'Best performing stock: {best_stock}')\n",
+    "print(f'Worst performing stock: {worst_stock}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "The best-performing stock created the most growth over the period. The worst-performing stock may still be useful if it lowers risk or improves diversification."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 14. Portfolio Insights\n",
+    "\n",
+    "This section turns the portfolio results into a short written summary. The goal is to explain the numbers clearly instead of only showing tables and charts.\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Portfolio Insights\n",
+    "# -----------------------------\n",
+    "\n",
+    "highest_vol_stock = risk_summary.index[0]\n",
+    "lowest_vol_stock = risk_summary.index[-1]\n",
+    "final_portfolio_value = portfolio_value.iloc[-1]\n",
+    "portfolio_total_return = (final_portfolio_value / starting_investment) - 1\n",
+    "\n",
+    "insights = f'''\n",
+    "Portfolio Insights\n",
+    "------------------\n",
+    "\n",
+    "1. Portfolio Performance:\n",
+    "The portfolio grew from ${starting_investment:,.2f} to ${final_portfolio_value:,.2f}, producing a total return of {portfolio_total_return:.2%} over the selected period.\n",
+    "\n",
+    "2. Best Performer:\n",
+    "{best_stock} was the strongest performer in the portfolio. This stock contributed positively to long-term growth and helped increase the overall portfolio value.\n",
+    "\n",
+    "3. Weakest Performer:\n",
+    "{worst_stock} had the lowest total return during the selected period. This does not automatically mean it is a bad investment, but it should be reviewed against the investor's goals.\n",
+    "\n",
+    "4. Risk Profile:\n",
+    "{highest_vol_stock} had the highest volatility, meaning it experienced the largest price swings. {lowest_vol_stock} had the lowest volatility, making it relatively more stable compared with the other holdings.\n",
+    "\n",
+    "5. Diversification:\n",
+    "The portfolio includes technology, financial services, and energy exposure. This is stronger than holding only one sector, but the portfolio may still be heavily influenced by large-cap U.S. stocks.\n",
+    "\n",
+    "6. Sharpe Ratio:\n",
+    "The portfolio Sharpe ratio is {portfolio_sharpe_ratio:.2f}. This measures how much return the portfolio earned for each unit of risk. A higher number is generally better.\n",
+    "\n",
+    "7. Business Summary:\n",
+    "Overall, this portfolio is growth-oriented because it includes major technology companies such as Apple, Microsoft, and Nvidia, while JPMorgan and Exxon Mobil add financial and energy sector exposure.\n",
+    "'''\n",
+    "\n",
+    "print(insights)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "Written insights help turn raw calculations into decisions. In finance, the numbers matter, but the explanation is what makes the analysis useful.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 15. Final Dashboard-Style Summary\n",
+    "\n",
+    "This table summarizes the most important portfolio metrics in one place."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Final Dashboard Summary\n",
+    "# -----------------------------\n",
+    "\n",
+    "dashboard_summary = pd.DataFrame({\n",
+    "    'Metric': [\n",
+    "        'Starting Investment',\n",
+    "        'Final Portfolio Value',\n",
+    "        'Portfolio Total Return',\n",
+    "        'Portfolio Annual Return',\n",
+    "        'Portfolio Annual Volatility',\n",
+    "        'Sharpe Ratio',\n",
+    "        'Best Performing Stock',\n",
+    "        'Worst Performing Stock',\n",
+    "        'Highest Volatility Stock',\n",
+    "        'Lowest Volatility Stock'\n",
+    "    ],\n",
+    "    'Value': [\n",
+    "        f'${starting_investment:,.2f}',\n",
+    "        f'${final_portfolio_value:,.2f}',\n",
+    "        f'{portfolio_total_return:.2%}',\n",
+    "        f'{portfolio_annual_return:.2%}',\n",
+    "        f'{portfolio_annual_volatility:.2%}',\n",
+    "        f'{portfolio_sharpe_ratio:.2f}',\n",
+    "        best_stock,\n",
+    "        worst_stock,\n",
+    "        highest_vol_stock,\n",
+    "        lowest_vol_stock\n",
+    "    ]\n",
+    "})\n",
+    "\n",
+    "dashboard_summary"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "# -----------------------------\n",
+    "# Export Main Results to CSV\n",
+    "# -----------------------------\n",
+    "\n",
+    "allocation_df.to_csv('portfolio_allocation.csv', index=False)\n",
+    "returns_summary.to_csv('returns_summary.csv')\n",
+    "risk_summary.to_csv('risk_summary.csv')\n",
+    "performance_summary.to_csv('performance_summary.csv')\n",
+    "dashboard_summary.to_csv('dashboard_summary.csv', index=False)\n",
+    "\n",
+    "print('CSV files exported successfully.')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Finance meaning\n",
+    "A dashboard gives decision-makers a fast summary. In business, people often do not want every calculation; they want the key message and supporting evidence."
+   ]
+  }
+ ],
+ "metadata": {
+  "colab": {
+   "provenance": []
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "name": "python3"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3.10"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
