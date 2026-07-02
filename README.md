@@ -1,5 +1,5 @@
 [README.md](https://github.com/user-attachments/files/29608392/README.md)
-# Stock Portfolio Analyzer with AI Insights
+# Stock Portfolio Analyzer
 
 ## Project Overview
 
